@@ -35,8 +35,14 @@ public class ResourceResolver {
         this.basePackage = basePackage;
     }
 
+    /**
+     * 获取扫描到的Resource
+     * @param mapper
+     * @return
+     * @param <R>
+     */
     public <R> List<R> scan(Function<Resource, R> mapper) {
-        String basePackagePath = this.basePackage.replace(".", "/");
+        String basePackagePath = this.basePackage.replace(".", "/"); // com/itranswarp/scan
         String path = basePackagePath;
         try {
             List<R> collector = new ArrayList<>();
@@ -51,15 +57,25 @@ public class ResourceResolver {
 
     <R> void scan0(String basePackagePath, String path, List<R> collector, Function<Resource, R> mapper) throws IOException, URISyntaxException {
         logger.atDebug().log("scan path: {}", path);
+        // 通过ClassLoader获取URL列表:
         Enumeration<URL> en = getContextClassLoader().getResources(path);
         while (en.hasMoreElements()) {
             URL url = en.nextElement();
             URI uri = url.toURI();
+            // 1、当path是com/itranswarp/scan时：
+            // file:/D:/Project/summer-framework/step-by-step/resource-resolver/target/test-classes/com/itranswarp/scan
+            // 2、当path是jakarta/annotation时，扫描到两个url：
+            // file:/D:/Project/summer-framework/step-by-step/resource-resolver/target/test-classes/jakarta/annotation
+            // jar:file:/D:/Java/maven-3.5.4/repository/jakarta/annotation/jakarta.annotation-api/2.1.1/jakarta.annotation-api-2.1.1.jar!/jakarta/annotation
+            // 3、当path是com/itranswarp/scan时：
+            // file:/D:/Project/summer-framework/step-by-step/resource-resolver/target/test-classes/com/itranswarp/scan
             String uriStr = removeTrailingSlash(uriToString(uri));
             String uriBaseStr = uriStr.substring(0, uriStr.length() - basePackagePath.length());
+            // 在目录中搜索
             if (uriBaseStr.startsWith("file:")) {
                 uriBaseStr = uriBaseStr.substring(5);
             }
+            // 在Jar包中搜索
             if (uriStr.startsWith("jar:")) {
                 scanFile(true, uriBaseStr, jarUriToPath(basePackagePath, uri), collector, mapper);
             } else {
@@ -68,6 +84,9 @@ public class ResourceResolver {
         }
     }
 
+    // ClassLoader首先从Thread.getContextClassLoader()获取，如果获取不到，再从【当前Class】获取。
+    // 因为Web应用的ClassLoader不是JVM提供的基于Classpath的ClassLoader，而是Servlet容器提供的ClassLoader，它不在默认的Classpath搜索，
+    // 而是在/WEB-INF/classes目录和/WEB-INF/lib的所有jar包搜索，从Thread.getContextClassLoader()可以获取到Servlet容器专属的ClassLoader；
     ClassLoader getContextClassLoader() {
         ClassLoader cl = null;
         cl = Thread.currentThread().getContextClassLoader();
@@ -104,6 +123,11 @@ public class ResourceResolver {
         return URLDecoder.decode(uri.toString(), StandardCharsets.UTF_8);
     }
 
+    /**
+     * 去掉开头斜杠
+     * @param s
+     * @return
+     */
     String removeLeadingSlash(String s) {
         if (s.startsWith("/") || s.startsWith("\\")) {
             s = s.substring(1);
@@ -111,6 +135,11 @@ public class ResourceResolver {
         return s;
     }
 
+    /**
+     * 去掉末尾斜杠
+     * @param s
+     * @return
+     */
     String removeTrailingSlash(String s) {
         if (s.endsWith("/") || s.endsWith("\\")) {
             s = s.substring(0, s.length() - 1);
