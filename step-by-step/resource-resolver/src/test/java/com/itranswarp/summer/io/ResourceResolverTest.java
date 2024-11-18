@@ -51,6 +51,7 @@ public class ResourceResolverTest {
     public void scanJar() {
         var pkg = PostConstruct.class.getPackageName();
         var rr = new ResourceResolver(pkg);
+        String property = System.getProperty("java.class.path");
         List<String> classes = rr.scan(res -> {
             String name = res.name();
             if (name.endsWith(".class")) {

@@ -24,12 +24,15 @@ import jakarta.annotation.Nullable;
 public class PropertyResolver {
 
     Logger logger = LoggerFactory.getLogger(getClass());
-
+    // 存储所有环境变量和入参的哈希表，便于${}表达式查找
     Map<String, String> properties = new HashMap<>();
+    // 存储Class -> Function
     Map<Class<?>, Function<String, Object>> converters = new HashMap<>();
 
     public PropertyResolver(Properties props) {
+        // 存入环境变量
         this.properties.putAll(System.getenv());
+        // 存入Properties
         Set<String> names = props.stringPropertyNames();
         for (String name : names) {
             this.properties.put(name, props.getProperty(name));
@@ -76,16 +79,25 @@ public class PropertyResolver {
         return this.properties.containsKey(key);
     }
 
+    /**
+     *
+     * @param key
+     * @return
+     */
     @Nullable
     public String getProperty(String key) {
+        // 解析${abc.xyz:defaultValue}，返回key=abc.xyz
         PropertyExpr keyExpr = parsePropertyExpr(key);
         if (keyExpr != null) {
             if (keyExpr.defaultValue() != null) {
+                // 带默认值查询
                 return getProperty(keyExpr.key(), keyExpr.defaultValue());
             } else {
+                // 不带默认值查询
                 return getRequiredProperty(keyExpr.key());
             }
         }
+        // 普通key查询
         String value = this.properties.get(key);
         if (value != null) {
             return parseValue(value);
@@ -98,12 +110,20 @@ public class PropertyResolver {
         return value == null ? parseValue(defaultValue) : value;
     }
 
+    /**
+     * 类型转换的入口查询
+     * @param key
+     * @param targetType
+     * @return
+     * @param <T>
+     */
     @Nullable
     public <T> T getProperty(String key, Class<T> targetType) {
         String value = getProperty(key);
         if (value == null) {
             return null;
         }
+        // 转换为指定类型
         return convert(targetType, value);
     }
 
@@ -125,6 +145,13 @@ public class PropertyResolver {
         return Objects.requireNonNull(value, "Property '" + key + "' not found.");
     }
 
+    /**
+     * 转换到指定Class类型
+     * @param clazz
+     * @param value
+     * @return
+     * @param <T>
+     */
     @SuppressWarnings("unchecked")
     <T> T convert(Class<?> clazz, String value) {
         Function<String, Object> fn = this.converters.get(clazz);
@@ -135,6 +162,7 @@ public class PropertyResolver {
     }
 
     String parseValue(String value) {
+        // 解析出值之后，再尝试解析表达式，这样就可以支持嵌套的key，例如：${app.title:${APP_NAME:Summer}}
         PropertyExpr expr = parsePropertyExpr(value);
         if (expr == null) {
             return value;
@@ -148,6 +176,7 @@ public class PropertyResolver {
 
     PropertyExpr parsePropertyExpr(String key) {
         if (key.startsWith("${") && key.endsWith("}")) {
+            // 是否存在defaultValue
             int n = key.indexOf(':');
             if (n == (-1)) {
                 // no default value: ${key}

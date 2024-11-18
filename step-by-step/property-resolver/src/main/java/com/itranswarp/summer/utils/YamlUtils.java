@@ -39,12 +39,19 @@ public class YamlUtils {
         return plain;
     }
 
+    /**
+     * 把树形结构“拍平”
+     * @param source
+     * @param prefix
+     * @param plain
+     */
     static void convertTo(Map<String, Object> source, String prefix, Map<String, Object> plain) {
         for (String key : source.keySet()) {
             Object value = source.get(key);
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> subMap = (Map<String, Object>) value;
+                // 如果下级还是map，则递归解析
                 convertTo(subMap, prefix + key + ".", plain);
             } else if (value instanceof List) {
                 plain.put(prefix + key, value);

@@ -77,6 +77,10 @@ public class ResourceResolver {
             }
             // 在Jar包中搜索
             if (uriStr.startsWith("jar:")) {
+                // 例如uriStr是jar:file:/D:/Java/maven-3.5.4/repository/jakarta/annotation/jakarta.annotation-api/2.1.1/jakarta.annotation-api-2.1.1.jar!/jakarta/annotation
+                // uriBaseStr和uri同样
+                // basePackagePath是jakarta/annotation
+                // jarUriToPath(basePackagePath, uri)结果是jakarta/annotation
                 scanFile(true, uriBaseStr, jarUriToPath(basePackagePath, uri), collector, mapper);
             } else {
                 scanFile(false, uriBaseStr, Paths.get(uri), collector, mapper);
