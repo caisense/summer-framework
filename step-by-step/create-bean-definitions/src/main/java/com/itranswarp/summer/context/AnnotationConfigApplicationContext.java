@@ -38,8 +38,14 @@ public class AnnotationConfigApplicationContext {
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
     protected final PropertyResolver propertyResolver;
+    // 存储BeanDefinition的map
     protected final Map<String, BeanDefinition> beans;
 
+    /**
+     * 构造方法
+     * @param configClass 配置类
+     * @param propertyResolver 属性解析器
+     */
     public AnnotationConfigApplicationContext(Class<?> configClass, PropertyResolver propertyResolver) {
         this.propertyResolver = propertyResolver;
 
@@ -63,6 +69,7 @@ public class AnnotationConfigApplicationContext {
             } catch (ClassNotFoundException e) {
                 throw new BeanCreationException(e);
             }
+            // 如果该类是注解|枚举|接口|记录，则忽略
             if (clazz.isAnnotation() || clazz.isEnum() || clazz.isInterface() || clazz.isRecord()) {
                 continue;
             }
@@ -71,9 +78,11 @@ public class AnnotationConfigApplicationContext {
             if (component != null) {
                 logger.atDebug().log("found component: {}", clazz.getName());
                 int mod = clazz.getModifiers();
+                // 修饰符不能是abstract
                 if (Modifier.isAbstract(mod)) {
                     throw new BeanDefinitionException("@Component class " + clazz.getName() + " must not be abstract.");
                 }
+                // 修饰符不能是private
                 if (Modifier.isPrivate(mod)) {
                     throw new BeanDefinitionException("@Component class " + clazz.getName() + " must not be private.");
                 }
@@ -206,14 +215,16 @@ public class AnnotationConfigApplicationContext {
      * Do component scan and return class names.
      */
     protected Set<String> scanForClassNames(Class<?> configClass) {
-        // 获取要扫描的package名称:
+        // 获取@ComponentScan注解:
         ComponentScan scan = ClassUtils.findAnnotation(configClass, ComponentScan.class);
+        // 获取注解配置的package名字,未配置则默认当前类所在包
         final String[] scanPackages = scan == null || scan.value().length == 0 ? new String[] { configClass.getPackage().getName() } : scan.value();
         logger.atInfo().log("component scan in packages: {}", Arrays.toString(scanPackages));
-
+        // 扫描结果存入Set
         Set<String> classNameSet = new HashSet<>();
+        // 依次扫描所有包
         for (String pkg : scanPackages) {
-            // 扫描package:
+            // 调用ResourceResolver模块，扫描package:
             logger.atDebug().log("scan package: {}", pkg);
             var rr = new ResourceResolver(pkg);
             List<String> classList = rr.scan(res -> {
@@ -280,7 +291,7 @@ public class AnnotationConfigApplicationContext {
      */
     public List<BeanDefinition> findBeanDefinitions(Class<?> type) {
         return this.beans.values().stream()
-                // filter by type and sub-type:
+                // filter by type and sub-type（按类型过滤）:
                 .filter(def -> type.isAssignableFrom(def.getBeanClass()))
                 // 排序:
                 .sorted().collect(Collectors.toList());
@@ -292,20 +303,20 @@ public class AnnotationConfigApplicationContext {
     @Nullable
     public BeanDefinition findBeanDefinition(Class<?> type) {
         List<BeanDefinition> defs = findBeanDefinitions(type);
-        if (defs.isEmpty()) {
+        if (defs.isEmpty()) { // can not find any BeanDefinition
             return null;
         }
-        if (defs.size() == 1) {
+        if (defs.size() == 1) { // find only one
             return defs.get(0);
         }
-        // more than 1 beans, require @Primary:
+        // find more than 1 beans, require @Primary:
         List<BeanDefinition> primaryDefs = defs.stream().filter(def -> def.isPrimary()).collect(Collectors.toList());
-        if (primaryDefs.size() == 1) {
+        if (primaryDefs.size() == 1) { // @Primary unique
             return primaryDefs.get(0);
         }
-        if (primaryDefs.isEmpty()) {
+        if (primaryDefs.isEmpty()) { // no @Primary
             throw new NoUniqueBeanDefinitionException(String.format("Multiple bean with type '%s' found, but no @Primary specified.", type.getName()));
-        } else {
+        } else { // @Primary not unique
             throw new NoUniqueBeanDefinitionException(String.format("Multiple bean with type '%s' found, and multiple @Primary specified.", type.getName()));
         }
     }
