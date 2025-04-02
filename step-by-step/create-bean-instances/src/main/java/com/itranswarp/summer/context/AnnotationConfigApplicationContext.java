@@ -65,10 +65,16 @@ public class AnnotationConfigApplicationContext {
         // 创建BeanName检测循环依赖:
         this.creatingBeanNames = new HashSet<>();
 
+        /**
+         * 由于`@Configuration`标识的Bean实际上是工厂，它们必须先实例化，才能实例化其他普通Bean，
+         * 所以我们先把`@Configuration`标识的Bean创建出来，再创建普通Bean
+         */
+
         // 创建@Configuration类型的Bean:
         this.beans.values().stream()
                 // 过滤出@Configuration:
                 .filter(this::isConfigurationDefinition).sorted().map(def -> {
+                    // 创建Bean实例:
                     createBeanAsEarlySingleton(def);
                     return def.getName();
                 }).collect(Collectors.toList());
@@ -89,7 +95,7 @@ public class AnnotationConfigApplicationContext {
     void createNormalBeans() {
         // 获取BeanDefinition列表:
         List<BeanDefinition> defs = this.beans.values().stream()
-                // filter bean definitions by not instantiation:
+                // 过滤出没有实例化的BeanDefinition:
                 .filter(def -> def.getInstance() == null).sorted().collect(Collectors.toList());
 
         defs.forEach(def -> {
@@ -106,6 +112,7 @@ public class AnnotationConfigApplicationContext {
      */
     public Object createBeanAsEarlySingleton(BeanDefinition def) {
         logger.atDebug().log("Try create bean '{}' as early singleton: {}", def.getName(), def.getBeanClass().getName());
+        // 检测循环依赖
         if (!this.creatingBeanNames.add(def.getName())) {
             throw new UnsatisfiedDependencyException(String.format("Circular dependency detected when create bean '%s'", def.getName()));
         }
@@ -124,6 +131,7 @@ public class AnnotationConfigApplicationContext {
         final Parameter[] parameters = createFn.getParameters();
         final Annotation[][] parametersAnnos = createFn.getParameterAnnotations();
         Object[] args = new Object[parameters.length];
+        // 遍历参数，从参数获取@Value和@Autowired:
         for (int i = 0; i < parameters.length; i++) {
             final Parameter param = parameters[i];
             final Annotation[] paramAnnos = parametersAnnos[i];
